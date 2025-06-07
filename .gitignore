@@ -3,3 +3,5 @@ build
 *.TTF
 
 log*.txt
+*.log
+

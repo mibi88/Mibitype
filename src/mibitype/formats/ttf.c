@@ -97,7 +97,7 @@ char mt_ttf_load_glyphs(MTTTF *ttf) {
     size_t glyf_table_pos;
     size_t loca_table_pos;
     ttf->glyphs = malloc(ttf->glyph_num*sizeof(MTTTFGlyph));
-    if(!ttf->glyphs){
+    if(ttf->glyphs == NULL){
         free(ttf->table_dir);
         ttf->table_dir = NULL;
         return 1;
@@ -194,6 +194,7 @@ char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
     uint16_t point_num;
     uint16_t instruction_num;
     uint8_t flag;
+    uint8_t count;
     uint8_t *flags;
     int16_t value;
     uint16_t unsigned_value;
@@ -224,6 +225,7 @@ char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
     point_num = glyph->contour_ends[glyph->contour_num-1]+1;
 #if MT_DEBUG
     printf("mibitype: Point num: %d\n", point_num);
+    printf("mibitype: cur: %016lx\n", ttf->cur);
 #endif
     flags = malloc(point_num*sizeof(uint8_t));
     if(!flags) return 3;
@@ -231,8 +233,8 @@ char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
         flag = mt_ttf_read_char(ttf);
         flags[i] = flag;
         if(flag&(1<<3)){
-            flag = mt_ttf_read_char(ttf);
-            for(n=0;n<flag;n++){
+            count = mt_ttf_read_char(ttf);
+            for(n=0;n<count;n++){
                 if(i+1 >= point_num){
 #if MT_DEBUG
                     puts("mibitype: Too many flags!");
@@ -245,7 +247,8 @@ char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
     }
 #if MT_DEBUG
     for(i=0;i<point_num;i++){
-        printf("Flag %ld: %02x\n", i+1, flags[i]);
+        printf("mibitype: cur: %016lx. Flag %ld: %02x\n", ttf->cur, i+1,
+               flags[i]);
     }
 #endif
     glyph->points = malloc(point_num*sizeof(MTTTFPoint));
@@ -259,20 +262,23 @@ char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
             value = mt_ttf_read_char(ttf);
             if(!(flags[i]&(1<<4))) value = -value;
 #if MT_DEBUG
-            printf("mibitype: X (1 byte) coordinate offset: %d\n", value);
+            printf("mibitype: cur: %016lx. X (1 byte) coordinate offset: %d\n",
+                   ttf->cur, value);
 #endif
             x += value;
         }else if(!(flags[i]&(1<<4))){
             /* The X coordinate is two bytes long */
             value = mt_ttf_read_short(ttf);
 #if MT_DEBUG
-            printf("mibitype: X (2 bytes) coordinate offset: %d\n", value);
+            printf("mibitype: cur: %016lx. X (2 bytes) coordinate offset: "
+                   "%d\n", ttf->cur, value);
 #endif
             x += value;
         }
 #if MT_DEBUG
         else{
-            puts("mibitype: Repeated X coordinate.");
+            printf("mibitype: cur: %016lx. Repeated X coordinate.\n",
+                   ttf->cur);
         }
 #endif
         glyph->points[i].x = x;
@@ -284,20 +290,23 @@ char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
             value = mt_ttf_read_char(ttf);
             if(!(flags[i]&(1<<5))) value = -value;
 #if MT_DEBUG
-            printf("mibitype: Y (1 byte) coordinate offset: %d\n", value);
+            printf("mibitype: cur: %016lx. Y (1 byte) coordinate offset: %d\n",
+                   ttf->cur, value);
 #endif
             y += value;
         }else if(!(flags[i]&(1<<5))){
             /* The Y coordinate is two bytes long */
             value = mt_ttf_read_short(ttf);
 #if MT_DEBUG
-            printf("mibitype: Y (2 bytes) coordinate offset: %d\n", value);
+            printf("mibitype: cur: %016lx. Y (2 bytes) coordinate offset: "
+                   "%d\n", ttf->cur, value);
 #endif
             y += value;
         }
 #if MT_DEBUG
         else{
-            puts("mibitype: Repeated Y coordinate.");
+            printf("mibitype: cur: %016lx. Repeated Y coordinate.\n",
+                   ttf->cur);
         }
 #endif
         glyph->points[i].y = y;
