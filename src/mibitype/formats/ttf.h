@@ -93,14 +93,15 @@ void mt_ttf_read_array(MTTTF *ttf, uint8_t *array, size_t bytes);
 
 void mt_ttf_skip(MTTTF *ttf, size_t bytes);
 
-char mt_ttf_load(MTTTF *ttf);
-char mt_ttf_load_glyphs(MTTTF *ttf);
-char mt_ttf_load_dir(MTTTF *ttf);
-char mt_ttf_load_profile(MTTTF *ttf);
-char mt_ttf_load_header(MTTTF *ttf);
-char mt_ttf_load_cmap(MTTTF *ttf);
-char mt_ttf_load_glyph(MTTTF *ttf, MTTTFGlyph *glyph);
-char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph);
+int mt_ttf_load(MTTTF *ttf);
+int mt_ttf_load_glyphs(MTTTF *ttf);
+int mt_ttf_load_dir(MTTTF *ttf);
+int mt_ttf_load_profile(MTTTF *ttf);
+int mt_ttf_load_header(MTTTF *ttf);
+int mt_ttf_load_cmap(MTTTF *ttf);
+int mt_ttf_load_glyph(MTTTF *ttf, MTTTFGlyph *glyph);
+int mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph);
+int mt_ttf_load_compound_glyph(MTTTF *ttf, MTTTFGlyph *glyph);
 
 size_t mt_ttf_get_index(MTTTF *ttf, uint32_t c);
 

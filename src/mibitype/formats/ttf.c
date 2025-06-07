@@ -81,7 +81,7 @@ void mt_ttf_skip(MTTTF *ttf, size_t bytes) {
     ttf->cur += bytes;
 }
 
-char mt_ttf_load(MTTTF *ttf) {
+int mt_ttf_load(MTTTF *ttf) {
     /* Load the font. */
     if(mt_ttf_load_dir(ttf)) return 1;
     if(mt_ttf_load_profile(ttf)) return 1;
@@ -91,17 +91,19 @@ char mt_ttf_load(MTTTF *ttf) {
     return 0;
 }
 
-char mt_ttf_load_glyphs(MTTTF *ttf) {
+int mt_ttf_load_glyphs(MTTTF *ttf) {
     size_t i;
     char found = 0;
     size_t glyf_table_pos;
     size_t loca_table_pos;
+
     ttf->glyphs = malloc(ttf->glyph_num*sizeof(MTTTFGlyph));
     if(ttf->glyphs == NULL){
         free(ttf->table_dir);
         ttf->table_dir = NULL;
         return 1;
     }
+
     /* Find the glyf table. */
     for(i=0;i<ttf->table_num;i++){
         if(*(uint32_t*)ttf->table_dir[i].tag == *(uint32_t*)"glyf"){
@@ -110,10 +112,13 @@ char mt_ttf_load_glyphs(MTTTF *ttf) {
         }
     }
     if(!found) return 1;
+
     glyf_table_pos = ttf->table_dir[i].offset;
+
 #if MT_DEBUG
     printf("\"glyf\" table offset: %08lx\n", glyf_table_pos);
 #endif
+
     /* Find the loca table. */
     for(i=0;i<ttf->table_num;i++){
         if(*(uint32_t*)ttf->table_dir[i].tag == *(uint32_t*)"loca"){
@@ -126,6 +131,7 @@ char mt_ttf_load_glyphs(MTTTF *ttf) {
 #if MT_DEBUG
     printf("\"loca\" table offset: %08lx\n", loca_table_pos);
 #endif
+
     for(i=0;i<ttf->glyph_num;i++){
 #if MT_DEBUG
         printf("mibitype: Loading glyph %04lx\n", i);
@@ -145,12 +151,11 @@ char mt_ttf_load_glyphs(MTTTF *ttf) {
             return 1;
         }
     }
+
     return 0;
 }
 
-char mt_ttf_load_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
-    size_t i;
-    char found;
+int mt_ttf_load_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
     /* Load the glyph description. It is made up of:
      * int16 the number of contours (useful to know if it is a simple glyph).
      * int16 the minimum X coordinate.
@@ -158,37 +163,27 @@ char mt_ttf_load_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
      * int16 the maximum X coordinate.
      * int16 the maximum Y coordinate.
      */
+
     glyph->contour_num = mt_ttf_read_short(ttf);
     glyph->xmin = mt_ttf_read_short(ttf);
     glyph->ymin = mt_ttf_read_short(ttf);
     glyph->xmax = mt_ttf_read_short(ttf);
     glyph->ymax = mt_ttf_read_short(ttf);
+
     if(glyph->contour_num >= 0){
         if(mt_ttf_load_simple_glyph(ttf, glyph)){
             return 1;
         }
     }else{
-        /* It is a compound glyph. */
-#if MT_DEBUG
-        puts("mibitype: Compound glyph found!");
-#endif
-        /* Load the first glyph because compound glyphs are currently
-         * unsupported. */
-        /* Find the glyf table. */
-        for(i=0;i<ttf->table_num;i++){
-            if(*(uint32_t*)ttf->table_dir[i].tag == *(uint32_t*)"glyf"){
-                found = 1;
-                break;
-            }
+        if(mt_ttf_load_compound_glyph(ttf, glyph)){
+            return 2;
         }
-        if(!found) return 1;
-        ttf->cur = ttf->table_dir[i].offset;
-        mt_ttf_load_glyph(ttf, glyph);
     }
+
     return 0;
 }
 
-char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
+int mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
     size_t i, n;
     coord_t x, y;
     uint16_t point_num;
@@ -197,7 +192,7 @@ char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
     uint8_t count;
     uint8_t *flags;
     int16_t value;
-    uint16_t unsigned_value;
+
     /* Simple glyphs are stored as following:
      * uint16 x contour_num is an array containing indices of the last
      *                      points of a contour.
@@ -209,29 +204,37 @@ char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
      * the coordinates are relative to the previous point or (0;0) for the
      * first point.
      */
+
 #if MT_DEBUG
     puts("mibitype: Simple glyph found!");
     printf("mibitype: Contour num: %d\n", glyph->contour_num);
 #endif
+
     glyph->contour_ends = malloc(glyph->contour_num*sizeof(uint16_t));
-    if(!glyph->contour_ends) return 2;
+    if(glyph->contour_ends == NULL) return 2;
+
     for(i=0;i<(size_t)glyph->contour_num;i++){
         glyph->contour_ends[i] = mt_ttf_read_short(ttf);
     }
+
     /* Skip all the instruction stuff for now. */
     instruction_num = mt_ttf_read_short(ttf);
     mt_ttf_skip(ttf, instruction_num);
+
     /* Read the points and flags. */
     point_num = glyph->contour_ends[glyph->contour_num-1]+1;
 #if MT_DEBUG
     printf("mibitype: Point num: %d\n", point_num);
     printf("mibitype: cur: %016lx\n", ttf->cur);
 #endif
+
     flags = malloc(point_num*sizeof(uint8_t));
-    if(!flags) return 3;
+    if(flags == NULL) return 3;
+
     for(i=0;i<point_num;i++){
         flag = mt_ttf_read_char(ttf);
         flags[i] = flag;
+
         if(flag&(1<<3)){
             count = mt_ttf_read_char(ttf);
             for(n=0;n<count;n++){
@@ -245,16 +248,20 @@ char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
             }
         }
     }
+
 #if MT_DEBUG
     for(i=0;i<point_num;i++){
         printf("mibitype: cur: %016lx. Flag %ld: %02x\n", ttf->cur, i+1,
                flags[i]);
     }
 #endif
+
     glyph->points = malloc(point_num*sizeof(MTTTFPoint));
+
     /* Load the X coordinates and set if the point is on the curve. */
     x = 0;
     y = 0;
+
     for(i=0;i<point_num;i++){
         glyph->points[i].on_curve = flags[i]&1;
         if(flags[i]&(1<<1)){
@@ -283,6 +290,7 @@ char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
 #endif
         glyph->points[i].x = x;
     }
+
     /* Load the Y coordinates. */
     for(i=0;i<point_num;i++){
         if(flags[i]&(1<<2)){
@@ -311,8 +319,10 @@ char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
 #endif
         glyph->points[i].y = y;
     }
+
     free(flags);
     flags = NULL;
+
 #if MT_DEBUG
     puts("mibitype: Glyph loaded. Coordinates:");
     for(i=0;i<point_num;i++){
@@ -321,15 +331,37 @@ char mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
     }
     puts("mibitype: ==========================");
 #endif
+
     return 0;
 }
 
-char mt_ttf_load_compound_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
-    /**/
+int mt_ttf_load_compound_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
+    size_t i;
+    int found;
+
+    /* It is a compound glyph. */
+#if MT_DEBUG
+    puts("mibitype: Compound glyph found!");
+#endif
+    /* Load the first glyph because compound glyphs are currently
+     * unsupported. */
+
+    /* Find the glyf table. */
+    for(i=0;i<ttf->table_num;i++){
+        if(*(uint32_t*)ttf->table_dir[i].tag == *(uint32_t*)"glyf"){
+            found = 1;
+            break;
+        }
+    }
+    if(!found) return 1;
+    ttf->cur = ttf->table_dir[i].offset;
+
+    mt_ttf_load_glyph(ttf, glyph);
+
     return 0;
 }
 
-char mt_ttf_load_dir(MTTTF *ttf) {
+int mt_ttf_load_dir(MTTTF *ttf) {
     size_t i;
     /* Load the font directory. */
     /* We'll load the offset subtable:
@@ -342,42 +374,50 @@ char mt_ttf_load_dir(MTTTF *ttf) {
      * uint16 the range shift (IDK what it is for, I think it helps to read
      *                         the font faster).
      */
+
     /* We'll just get the number of tables for now. */
     mt_ttf_skip(ttf, 4);
     ttf->table_num = mt_ttf_read_short(ttf);
     mt_ttf_skip(ttf, 2);
     mt_ttf_skip(ttf, 2);
     mt_ttf_skip(ttf, 2);
+
     /* Load the table directory, which is made up of the following values
      * uint32 the tag (we'll load it as an array of 4 bytes).
      * uint32 the checksum of the table.
      * uint32 the offset (where it is starting at sfnt).
      * uint32 the size of the table in bytes.
      */
+
     ttf->table_dir = malloc(sizeof(MTTTFTableDir)*ttf->table_num);
     if(!ttf->table_dir) return 1;
+
     for(i=0;i<ttf->table_num;i++){
         mt_ttf_read_array(ttf, ttf->table_dir[i].tag, 4);
         ttf->table_dir[i].checksum = mt_ttf_read_int(ttf);
         ttf->table_dir[i].offset = mt_ttf_read_int(ttf);
         ttf->table_dir[i].size = mt_ttf_read_int(ttf);
+
 #if MT_DEBUG
         fputs("mibitype: Table name: ", stdout);
         fwrite(ttf->table_dir[i].tag, 1, 4, stdout);
         printf(" at offset %08x\n", ttf->table_dir[i].offset);
 #endif
     }
+
     /* TODO: Check if the checksum is correct as described at
      * https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6.h
      * tml.
      */
+
     return 0;
 }
 
-char mt_ttf_load_profile(MTTTF *ttf) {
+int mt_ttf_load_profile(MTTTF *ttf) {
     /* TODO: Doc. */
     size_t i;
     char found = 0;
+
     /* Find the maxp table. */
     for(i=0;i<ttf->table_num;i++){
         if(*(uint32_t*)ttf->table_dir[i].tag == *(uint32_t*)"maxp"){
@@ -387,21 +427,25 @@ char mt_ttf_load_profile(MTTTF *ttf) {
     }
     if(!found) return 1;
     ttf->cur = ttf->table_dir[i].offset;
+
 #if MT_DEBUG
     printf("mibitype: \"maxp\" table offset: %08lx\n", ttf->cur);
 #endif
+
     /* Skip the version number for now. */
     mt_ttf_skip(ttf, 4);
     ttf->glyph_num = mt_ttf_read_short(ttf);
 #if MT_DEBUG
     printf("mibitype: This font has %d glyphs\n", ttf->glyph_num);
 #endif
+
     return 0;
 }
 
-char mt_ttf_load_header(MTTTF *ttf) {
+int mt_ttf_load_header(MTTTF *ttf) {
     size_t i;
     char found;
+
     /* Find the head table. */
     for(i=0;i<ttf->table_num;i++){
         if(*(uint32_t*)ttf->table_dir[i].tag == *(uint32_t*)"head"){
@@ -410,16 +454,19 @@ char mt_ttf_load_header(MTTTF *ttf) {
         }
     }
     if(!found) return 1;
+
     ttf->cur = ttf->table_dir[i].offset;
     mt_ttf_skip(ttf, 2*2+4*3+2*2+8*2+2*7);
     ttf->long_offsets = mt_ttf_read_short(ttf);
+
 #if MT_DEBUG
     printf("Long offsets: %d\n", ttf->long_offsets);
 #endif
+
     return 0;
 }
 
-char mt_ttf_load_cmap(MTTTF *ttf) {
+int mt_ttf_load_cmap(MTTTF *ttf) {
     size_t i;
     size_t cmap_start;
     char found;
@@ -432,6 +479,9 @@ char mt_ttf_load_cmap(MTTTF *ttf) {
     uint32_t start_char, end_char, start_index;
     size_t n;
 #endif
+
+    (void)length;
+
     /* Find the cmap table. */
     for(i=0;i<ttf->table_num;i++){
         if(*(uint32_t*)ttf->table_dir[i].tag == *(uint32_t*)"cmap"){
@@ -440,12 +490,16 @@ char mt_ttf_load_cmap(MTTTF *ttf) {
         }
     }
     if(!found) return 1;
+
     cmap_start = ttf->table_dir[i].offset;
     ttf->cur = cmap_start;
+
     /* Skip the version number (which is zero). */
     mt_ttf_skip(ttf, 2);
     ttf->encoding_subtables = mt_ttf_read_short(ttf);
     ttf->cmaps = malloc(ttf->encoding_subtables*sizeof(MTTTFCmap));
+    if(ttf->cmaps == NULL) return 1;
+
     for(i=0;i<ttf->encoding_subtables;i++){
         ttf->cur = cmap_start+4+i*8;
         platform_id = mt_ttf_read_short(ttf);
@@ -473,20 +527,25 @@ char mt_ttf_load_cmap(MTTTF *ttf) {
                 if(format == 4){
                     /* It is a two byte encoding format. */
                     length = mt_ttf_read_short(ttf);
+
                     /* Skip the language code */
                     mt_ttf_skip(ttf, 2);
+
                     /* TODO: Implement this awful thing! */
                 }else if(format == 12){
                     /* It is a very weird format. */
+
                     /* Skip the reserved thing */
                     mt_ttf_skip(ttf, 2);
                     length = mt_ttf_read_int(ttf);
+
                     /* Skip the language code */
                     mt_ttf_skip(ttf, 4);
                     group_num = mt_ttf_read_int(ttf);
                     ttf->cmaps[i].group_num = group_num;
                     ttf->cmaps[i].data_cur = ttf->cur;
                     ttf->best_map = i;
+
 #if MT_DEBUG
                     printf("mibitype: Group num: %d\n", group_num);
                     for(n=0;n<group_num;n++){
@@ -502,13 +561,16 @@ char mt_ttf_load_cmap(MTTTF *ttf) {
                 }
             }
         }else if(platform_id == 3){
+
             /* ISO platform ID */
             platform_specific_id = mt_ttf_read_short(ttf);
 #if MT_DEBUG
             printf("mibitype: Platform specific ID: %d\n",
                    platform_specific_id);
 #endif
+
             if(platform_specific_id == 1){
+
                 /* Unicode BMP */
                 format = mt_ttf_read_short(ttf);
                 ttf->cmaps[i].format = format;
@@ -520,6 +582,7 @@ char mt_ttf_load_cmap(MTTTF *ttf) {
             }
         }
     }
+
     return 0;
 }
 
@@ -528,8 +591,11 @@ size_t mt_ttf_get_index(MTTTF *ttf, uint32_t c) {
     uint32_t start_char, end_char, start_index;
     MTTTFCmap *cmap;
     cmap = ttf->cmaps+ttf->best_map;
+
     /* TODO: Make something clean. */
+
     ttf->cur = cmap->data_cur;
+
     if(cmap->platform_id == 0){
         if(cmap->format == 4){
             /* TODO */
@@ -547,6 +613,7 @@ size_t mt_ttf_get_index(MTTTF *ttf, uint32_t c) {
         /* TODO: Implement this correctly. */
         return c-0x1D;
     }
+
     return 0;
 }
 

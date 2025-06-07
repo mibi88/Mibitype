@@ -112,6 +112,9 @@ char render_keydown(Renderer *renderer, int key) {
         SDL_SCANCODE_LALT,
         SDL_SCANCODE_LSHIFT
     };
+
+    (void)renderer;
+
     SDL_PumpEvents();
     keybuffer = (Uint8*)SDL_GetKeyboardState(NULL);
     if(key >= 0 && key < KEY_AMOUNT){
@@ -129,6 +132,8 @@ int render_get_height(Renderer *renderer) {
 }
 
 int render_ms(Renderer *renderer) {
+    (void)renderer;
+
     return SDL_GetTicks();
 }
 

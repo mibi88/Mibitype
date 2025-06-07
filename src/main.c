@@ -87,6 +87,9 @@ void debug_render_glyph(MTTTFGlyph *glyph, int dx, int dy, float scale){
 
 void loop(int ms) {
     size_t pos;
+
+    (void)ms;
+
     if(!lock){
         if(render_keydown(&renderer, KEY_LEFT)){
 #if RENDER_FROM_CHAR
