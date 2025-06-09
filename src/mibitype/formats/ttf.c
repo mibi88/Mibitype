@@ -410,9 +410,11 @@ int mt_ttf_load_compound_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
                 /* The following values are bytes */
                 x = mt_ttf_read_char(ttf);
                 y = mt_ttf_read_char(ttf);
-                if(x&7) x |= 0xFF00;
-                if(y&7) y |= 0xFF00;
-                printf("%d, %d\n", x, y);
+                if(x&(1<<7)) x |= 0xFF00;
+                if(y&(1<<7)) y |= 0xFF00;
+#if MT_DEBUG
+                printf("mibitype: Offsets: %d, %d\n", x, y);
+#endif
             }
         }else{
             /* The following values are point numbers */
@@ -428,9 +430,11 @@ int mt_ttf_load_compound_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
             }
         }
 
+#if MT_DEBUG
         printf("mibitype: Component glyph: index: %04x, %s as %s\n", index,
                flags&(1<<1) ? "point numbers" : "coordinates",
                flags&1 ? "words" : "bytes");
+#endif
 
         old_pos = ttf->cur;
         if(ttf->long_offsets){
@@ -442,7 +446,9 @@ int mt_ttf_load_compound_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
         }
 
         component_point_num = glyph->points_offset;
+#if MT_DEBUG
         puts("mibitype: Load component...");
+#endif
         glyph->added_contour_num = mt_ttf_read_short(ttf);
         glyph->xmin = mt_ttf_read_short(ttf);
         glyph->ymin = mt_ttf_read_short(ttf);
@@ -456,7 +462,9 @@ int mt_ttf_load_compound_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
         }else{
             return 0;
         }
+#if MT_DEBUG
         puts("mibitype: Component loaded!");
+#endif
         ttf->cur = old_pos;
 
         /* Move the glyph around as needed */
@@ -502,10 +510,14 @@ int mt_ttf_load_compound_glyph(MTTTF *ttf, MTTTFGlyph *glyph) {
         }
 
         /* If the 5th flag bit is set, another component glyph follows */
+#if MT_DEBUG
         if(flags&(1<<5)) puts("mibitype: Continue");
+#endif
     }while(flags&(1<<5));
 
+#if MT_DEBUG
     puts("===========");
+#endif
 
     return 0;
 }
