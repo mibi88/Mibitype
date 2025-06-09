@@ -35,7 +35,7 @@
 #ifndef MT_DEFS_H
 #define MT_DEFS_H
 
-#define MT_DEBUG 1
+#define MT_DEBUG 0
 
 #include <stdint.h>
 #include <stdlib.h>

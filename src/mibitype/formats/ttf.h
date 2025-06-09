@@ -54,11 +54,13 @@ typedef struct {
 
 typedef struct {
     int16_t contour_num;
+    int16_t added_contour_num;
     uint16_t *contour_ends;
     int16_t xmin;
     int16_t ymin;
     int16_t xmax;
     int16_t ymax;
+    size_t points_offset;
     MTTTFPoint *points;
 } MTTTFGlyph;
 
@@ -78,6 +80,11 @@ typedef struct {
     int16_t long_offsets;
     uint16_t encoding_subtables;
     size_t best_map;
+
+    size_t glyf_table_pos;
+    size_t loca_table_pos;
+    size_t cmap_table_pos;
+
     Font font;
     MTTTFTableDir *table_dir;
     MTTTFGlyph *glyphs;
@@ -100,6 +107,7 @@ int mt_ttf_load_profile(MTTTF *ttf);
 int mt_ttf_load_header(MTTTF *ttf);
 int mt_ttf_load_cmap(MTTTF *ttf);
 int mt_ttf_load_glyph(MTTTF *ttf, MTTTFGlyph *glyph);
+int mt_ttf_glyph_init(MTTTF *ttf, MTTTFGlyph *glyph);
 int mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph);
 int mt_ttf_load_compound_glyph(MTTTF *ttf, MTTTFGlyph *glyph);
 
