@@ -190,8 +190,16 @@ MTGlyph *mt_font_get_glyph(MTFont *font, size_t c) {
 }
 
 void mt_font_free(MTFont *font) {
+    size_t i;
+
+    for(i=0;i<font->glyph_num;i++){
+        mt_glyph_free(font->glyphs+i);
+    }
+
     free(font->glyphs);
     font->glyphs = NULL;
+
+    MT_LOADERLIST_GET(font->loader, free)(font->data, font);
 
     free(font->data);
     font->data = NULL;

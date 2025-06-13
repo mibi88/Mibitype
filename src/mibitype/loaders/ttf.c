@@ -220,6 +220,9 @@ int mt_ttf_init(void *_data, void *_font) {
     MTTTF *ttf = _data;
     MTFont *font = _font;
 
+    ttf->flags = NULL;
+    ttf->table_dir = NULL;
+
     _mt_ttf_load_dir(ttf, font->reader, 0);
 
     if(_mt_ttf_get_table_pos(ttf, MT_TTF_GLYF, &ttf->glyf_table_pos)){
@@ -618,6 +621,9 @@ void mt_ttf_free(void *_data, void *_font) {
 
     free(ttf->flags);
     ttf->flags = NULL;
+
+    free(ttf->table_dir);
+    ttf->table_dir = NULL;
 }
 
 
