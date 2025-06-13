@@ -37,7 +37,6 @@
 
 #define MT_DEBUG 0
 
-#include <stdint.h>
 #include <stdlib.h>
 
 #if MT_DEBUG
