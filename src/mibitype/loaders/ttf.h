@@ -39,80 +39,51 @@
 #include <mibitype/font.h>
 
 typedef struct {
-    uint8_t tag[4];
-    uint32_t checksum;
-    uint32_t offset;
-    uint32_t size;
+    unsigned long int tag;
+    unsigned long int checksum;
+    unsigned long int offset;
+    unsigned long int size;
 } MTTTFTableDir;
 
-typedef int32_t coord_t;
-
 typedef struct {
-    coord_t x, y;
-    uint8_t on_curve;
-} MTTTFPoint;
-
-typedef struct {
-    int16_t contour_num;
-    int16_t added_contour_num;
-    uint16_t *contour_ends;
-    int16_t xmin;
-    int16_t ymin;
-    int16_t xmax;
-    int16_t ymax;
-    size_t points_offset;
-    MTTTFPoint *points;
-} MTTTFGlyph;
-
-typedef struct {
-    uint16_t format;
-    uint16_t platform_id;
-    uint32_t group_num;
+    unsigned short int format;
+    unsigned short int platform_id;
+    unsigned long int group_num;
     size_t data_cur;
 } MTTTFCmap;
 
 typedef struct {
-    uint8_t *buffer;
-    size_t size;
-    size_t cur;
-    uint16_t table_num;
-    uint16_t glyph_num;
-    int16_t long_offsets;
-    uint16_t encoding_subtables;
+    unsigned short int table_num;
+
+    unsigned short int glyph_num;
+    unsigned short int simple_points_max;
+
+    short int long_offsets;
+    unsigned short int encoding_subtables;
     size_t best_map;
 
     size_t glyf_table_pos;
+    size_t maxp_table_pos;
     size_t loca_table_pos;
     size_t cmap_table_pos;
 
-    Font font;
+    unsigned short int added_contours;
+
+    unsigned char *flags;
+
     MTTTFTableDir *table_dir;
-    MTTTFGlyph *glyphs;
-    MTTTFCmap *cmaps;
 } MTTTF;
 
-void mt_ttf_init(MTTTF *ttf, uint8_t *buffer, size_t size);
+int mt_ttf_is_valid(void *_data, MTReader *reader);
 
-uint8_t mt_ttf_read_char(MTTTF *ttf);
-uint16_t mt_ttf_read_short(MTTTF *ttf);
-uint32_t mt_ttf_read_int(MTTTF *ttf);
-void mt_ttf_read_array(MTTTF *ttf, uint8_t *array, size_t bytes);
+int mt_ttf_init(void *_data, void *_font);
 
-void mt_ttf_skip(MTTTF *ttf, size_t bytes);
+size_t mt_ttf_get_glyph_id(void *_data, void *_font, size_t c);
 
-int mt_ttf_load(MTTTF *ttf);
-int mt_ttf_load_glyphs(MTTTF *ttf);
-int mt_ttf_load_dir(MTTTF *ttf);
-int mt_ttf_load_profile(MTTTF *ttf);
-int mt_ttf_load_header(MTTTF *ttf);
-int mt_ttf_load_cmap(MTTTF *ttf);
-int mt_ttf_load_glyph(MTTTF *ttf, MTTTFGlyph *glyph);
-int mt_ttf_glyph_init(MTTTF *ttf, MTTTFGlyph *glyph);
-int mt_ttf_load_simple_glyph(MTTTF *ttf, MTTTFGlyph *glyph);
-int mt_ttf_load_compound_glyph(MTTTF *ttf, MTTTFGlyph *glyph);
+int mt_ttf_load_glyph(void *_data, void *_font, void *_glyph, size_t id);
 
-size_t mt_ttf_get_index(MTTTF *ttf, uint32_t c);
+int mt_ttf_load_missing(void *_data, void *_font, void *_glyph);
 
-void mt_ttf_free(MTTTF *ttf);
+void mt_ttf_free(void *_data, void *_font);
 
 #endif

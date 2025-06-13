@@ -37,20 +37,18 @@
 
 #include <render.h>
 
-#include <mibitype/formats/ttf.h>
+#include <mibitype/font.h>
 
 Renderer renderer;
 
-MTTTF ttf;
+MTFont font;
 
 size_t selected;
 char lock;
 
-#define RENDER_FROM_CHAR 1
-
-void debug_render_glyph(MTTTFGlyph *glyph, int dx, int dy, float scale){
+void debug_render_glyph(MTGlyph *glyph, int dx, int dy, float scale){
     size_t point_num;
-    coord_t x, y, sx, sy;
+    int x, y, sx, sy;
     size_t i, n;
     if(!glyph->contour_ends) return;
     point_num = glyph->contour_ends[glyph->contour_num-1];
@@ -86,102 +84,68 @@ void debug_render_glyph(MTTTFGlyph *glyph, int dx, int dy, float scale){
 }
 
 void loop(int ms) {
-    size_t pos;
+    MTGlyph *glyph;
 
     (void)ms;
 
     if(!lock){
         if(render_keydown(&renderer, KEY_LEFT)){
-#if RENDER_FROM_CHAR
             if(!selected) selected = 0xFFFF;
             selected--;
-#else
-            if(!selected) selected = ttf.glyph_num;
-            selected--;
-#endif
-            printf("Selected \'%c\' (%ld), glyph index: %ld\n", (char)selected,
-                   selected, mt_ttf_get_index(&ttf, selected));
+            printf("Selected \'%c\' (%04lx)\n", (char)selected&0x7F, selected);
         }
+
         if(render_keydown(&renderer, KEY_RIGHT)){
-#if RENDER_FROM_CHAR
             selected++;
-#else
-            if(selected >= (size_t)(ttf.glyph_num-1)) selected = 0;
-            else selected++;
-#endif
-            printf("Selected \'%c\' (%ld), glyph index: %ld\n", (char)selected,
-                   selected, mt_ttf_get_index(&ttf, selected));
+            printf("Selected \'%c\' (%04lx)\n", (char)selected&0x7F, selected);
         }
     }
+
     lock = render_keydown(&renderer, KEY_LEFT) |
            render_keydown(&renderer, KEY_RIGHT);
+
     render_clear(&renderer, 1);
-#if RENDER_FROM_CHAR
-    pos = mt_ttf_get_index(&ttf, selected);
-    if(pos < (size_t)(ttf.glyph_num)){
-        debug_render_glyph(ttf.glyphs+pos, 120, 120, 0.08);
-    }else{
-        debug_render_glyph(ttf.glyphs, 120, 120, 0.08);
-    }
-#else
-    debug_render_glyph(ttf.glyphs+selected, 120, 120, 0.08);
-#endif
+
+    glyph = mt_font_get_glyph(&font, selected);
+
+    debug_render_glyph(glyph, 120, 120, 0.08);
+
     render_show_fps(&renderer);
     render_update(&renderer);
 }
 
 int main(int argc, char **argv) {
-    uint8_t *buffer;
-    size_t size;
-    FILE *fp;
+    MTReader reader;
+
     if(argc < 2){
         fputs("USAGE: mibitype [FILE]\n", stderr);
+
         return EXIT_FAILURE;
     }
 
-    fp = fopen(argv[1], "r");
-    if(!fp){
-        fputs("mibitype: Unable to load the file!\n", stderr);
+    if(mt_reader_init(&reader, argv[1])){
+        fputs("mibitype: Failed to open file!\n", stderr);
+
         return EXIT_FAILURE;
     }
-    fseek(fp, 0, SEEK_END);
-    size = ftell(fp);
-    rewind(fp);
-    buffer = malloc(size);
-    if(!buffer){
-        fputs("mibitype: Unable to load the font in RAM!\n", stderr);
-        fclose(fp);
-        return EXIT_FAILURE;
-    }
-    fread(buffer, 1, size, fp);
-    fclose(fp);
 
-    printf("Size (in bytes): %ld\n", size);
-
-    mt_ttf_init(&ttf, buffer, size);
-    if(mt_ttf_load(&ttf)){
+    if(mt_font_init(&font, &reader)){
         fputs("mibitype: Unable to load the font!\n", stderr);
-        free(buffer);
+
         return EXIT_FAILURE;
     }
 
-    printf("Number of tables: %d\n", ttf.table_num);
-
-#if RENDER_FROM_CHAR
     selected = ' ';
-    printf("Selected \'%c\' (%04lx), glyph index: %ld\n", (char)selected,
-           selected, mt_ttf_get_index(&ttf, selected));
-#else
-    selected = 0;
-#endif
+    printf("Selected \'%c\' (%04lx)\n", (char)selected&0x7F, selected);
+
     lock = 0;
 
     render_init(&renderer, 320, 240, "MibiType");
     render_main_loop(&renderer, loop);
 
-    mt_ttf_free(&ttf);
+    mt_font_free(&font);
+    mt_reader_free(&reader);
 
-    free(buffer);
     return EXIT_SUCCESS;
 }
 

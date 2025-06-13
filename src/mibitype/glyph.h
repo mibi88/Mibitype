@@ -32,36 +32,30 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef MT_FONT_H
-#define MT_FONT_H
+#ifndef MT_GLYPH_H
+#define MT_GLYPH_H
 
-#include <mibitype/defs.h>
-
-#include <mibitype/reader.h>
-#include <mibitype/glyph.h>
-
-#include <stdlib.h>
+#include <stddef.h>
 
 typedef struct {
-    MTReader *reader;
+    int x, y;
+    unsigned char on_curve;
+} MTPoint;
 
-    MTGlyph *glyphs;
+typedef struct {
+    size_t *contour_ends;
+    size_t contour_num;
 
-    MTGlyph missing;
+    int xmin, ymin;
+    int xmax, ymax;
 
-    size_t glyph_num;
+    MTPoint *points;
 
-    size_t loader;
+    size_t c;
+} MTGlyph;
 
-    size_t expected_glyph_pos;
+int mt_glyph_init(MTGlyph *glyph);
 
-    void *data;
-} MTFont;
-
-int mt_font_init(MTFont *font, MTReader *reader);
-
-MTGlyph *mt_font_get_glyph(MTFont *font, size_t c);
-
-void mt_font_free(MTFont *font);
+void mt_glyph_free(MTGlyph *glyph);
 
 #endif

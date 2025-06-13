@@ -32,36 +32,31 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef MT_FONT_H
-#define MT_FONT_H
+#ifndef MT_READER_H
+#define MT_READER_H
 
-#include <mibitype/defs.h>
-
-#include <mibitype/reader.h>
-#include <mibitype/glyph.h>
-
-#include <stdlib.h>
+#include <stddef.h>
 
 typedef struct {
-    MTReader *reader;
+    unsigned char *buffer;
+    size_t size;
+    size_t cur;
+} MTReader;
 
-    MTGlyph *glyphs;
+#define MT_READER_JMP(reader, pos) (reader)->cur = (pos)
+#define MT_READER_SKIP(reader, bytes) (reader)->cur += (bytes)
 
-    MTGlyph missing;
+int mt_reader_init(MTReader *reader, char *file);
 
-    size_t glyph_num;
+unsigned char mt_reader_read_char(MTReader *reader);
 
-    size_t loader;
+unsigned short int mt_reader_read_short(MTReader *reader);
 
-    size_t expected_glyph_pos;
+unsigned long int mt_reader_read_int(MTReader *reader);
 
-    void *data;
-} MTFont;
+void mt_reader_read_array(MTReader *reader, unsigned char *array,
+                          size_t bytes);
 
-int mt_font_init(MTFont *font, MTReader *reader);
-
-MTGlyph *mt_font_get_glyph(MTFont *font, size_t c);
-
-void mt_font_free(MTFont *font);
+void mt_reader_free(MTReader *reader);
 
 #endif

@@ -32,36 +32,83 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef MT_FONT_H
-#define MT_FONT_H
-
-#include <mibitype/defs.h>
-
 #include <mibitype/reader.h>
-#include <mibitype/glyph.h>
+#include <mibitype/errors.h>
 
 #include <stdlib.h>
+#include <stdio.h>
 
-typedef struct {
-    MTReader *reader;
+int mt_reader_init(MTReader *reader, char *file) {
+    FILE *fp = fopen(file, "rb");
 
-    MTGlyph *glyphs;
+    if(fp == NULL) return MT_E_OPEN_FILE;
 
-    MTGlyph missing;
+    fseek(fp, 0, SEEK_END);
+    reader->size = ftell(fp);
+    rewind(fp);
 
-    size_t glyph_num;
+    reader->buffer = malloc(reader->size);
 
-    size_t loader;
+    if(reader->buffer == NULL){
+        fclose(fp);
 
-    size_t expected_glyph_pos;
+        return MT_E_OUT_OF_MEM;
+    }
 
-    void *data;
-} MTFont;
+    fread(reader->buffer, 1, reader->size, fp);
 
-int mt_font_init(MTFont *font, MTReader *reader);
+    fclose(fp);
 
-MTGlyph *mt_font_get_glyph(MTFont *font, size_t c);
+    return MT_E_NONE;
+}
 
-void mt_font_free(MTFont *font);
+unsigned char mt_reader_read_char(MTReader *reader) {
+    if(reader->cur+1 >= reader->size) return 0;
 
-#endif
+    return reader->buffer[reader->cur++];
+}
+
+unsigned short int mt_reader_read_short(MTReader *reader) {
+    unsigned char byte1, byte2;
+
+    if(reader->cur+2 >= reader->size) return 0;
+
+    byte1 = reader->buffer[reader->cur++];
+    byte2 = reader->buffer[reader->cur++];
+
+    return (byte1<<8) | byte2;
+}
+
+unsigned long int mt_reader_read_int(MTReader *reader) {
+    unsigned char byte1, byte2, byte3, byte4;
+
+    if(reader->cur+4 >= reader->size) return 0;
+
+    byte1 = reader->buffer[reader->cur++];
+    byte2 = reader->buffer[reader->cur++];
+    byte3 = reader->buffer[reader->cur++];
+    byte4 = reader->buffer[reader->cur++];
+
+    return (byte1<<24) | (byte2<<16) | (byte3<<8) | byte4;
+}
+
+void mt_reader_read_array(MTReader *reader, unsigned char *array,
+                          size_t bytes) {
+    size_t i;
+
+    if(reader->cur+4 >= reader->size){
+        for(i=0;i<bytes;i++){
+            array[i] = 0;
+        }
+        return;
+    }
+
+    for(i=0;i<bytes;i++){
+        array[i] = reader->buffer[reader->cur++];
+    }
+}
+
+void mt_reader_free(MTReader *reader) {
+    free(reader->buffer);
+    reader->buffer = NULL;
+}

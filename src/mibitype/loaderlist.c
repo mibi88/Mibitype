@@ -32,36 +32,18 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef MT_FONT_H
-#define MT_FONT_H
+#include <mibitype/loaderlist.h>
+#include <mibitype/loaders/ttf.h>
 
-#include <mibitype/defs.h>
+MTLoader mt_loaders[MT_LOADER_AMOUNT] = {
+    {
+        sizeof(MTTTF),
 
-#include <mibitype/reader.h>
-#include <mibitype/glyph.h>
-
-#include <stdlib.h>
-
-typedef struct {
-    MTReader *reader;
-
-    MTGlyph *glyphs;
-
-    MTGlyph missing;
-
-    size_t glyph_num;
-
-    size_t loader;
-
-    size_t expected_glyph_pos;
-
-    void *data;
-} MTFont;
-
-int mt_font_init(MTFont *font, MTReader *reader);
-
-MTGlyph *mt_font_get_glyph(MTFont *font, size_t c);
-
-void mt_font_free(MTFont *font);
-
-#endif
+        mt_ttf_is_valid,
+        mt_ttf_init,
+        mt_ttf_get_glyph_id,
+        mt_ttf_load_glyph,
+        mt_ttf_load_missing,
+        mt_ttf_free
+    }
+};

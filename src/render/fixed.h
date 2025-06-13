@@ -35,6 +35,7 @@
 #ifndef FIXED_H
 #define FIXED_H
 
+/* TODO: Do not require stdint.h anymore as it was only introduced with C99 */
 #include <stdint.h>
 
 #define ABS(x) ((x) < 0 ? -(x) : (x))
@@ -47,8 +48,8 @@
 #define UFIXED_MAX UINT32_MAX
 #define UFIXED_MIN UINT32_MIN
 /* The fixed point type (to make the code easier to read). */
-typedef int32_t fixed_t;
-typedef uint32_t ufixed_t;
+typedef long int fixed_t;
+typedef unsigned long int ufixed_t;
 
 /* The precision of the fixed point numbers. */
 #define PRECISION 7

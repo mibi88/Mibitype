@@ -32,4 +32,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef MT_RENDER_H
+#define MT_RENDER_H
 
+
+
+#endif

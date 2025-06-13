@@ -32,36 +32,18 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef MT_FONT_H
-#define MT_FONT_H
+#ifndef MT_ERRORS_H
+#define MT_ERRORS_H
 
-#include <mibitype/defs.h>
+enum {
+    MT_E_NONE,
+    MT_E_OPEN_FILE,
+    MT_E_OUT_OF_MEM,
+    MT_E_CORRUPTED,
+    MT_E_UNKNOWN_TYPE,
+    MT_E_IMPLEMENTATION,
 
-#include <mibitype/reader.h>
-#include <mibitype/glyph.h>
-
-#include <stdlib.h>
-
-typedef struct {
-    MTReader *reader;
-
-    MTGlyph *glyphs;
-
-    MTGlyph missing;
-
-    size_t glyph_num;
-
-    size_t loader;
-
-    size_t expected_glyph_pos;
-
-    void *data;
-} MTFont;
-
-int mt_font_init(MTFont *font, MTReader *reader);
-
-MTGlyph *mt_font_get_glyph(MTFont *font, size_t c);
-
-void mt_font_free(MTFont *font);
+    MT_E_AMOUNT
+};
 
 #endif
