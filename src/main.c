@@ -34,6 +34,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <render.h>
 
@@ -46,6 +47,14 @@ MTFont font;
 size_t selected;
 char lock;
 
+#define DEBUG_UTF8 0
+#define DEBUG_METRICS 0
+#define VIEW_GLYPHS 0
+
+#define SCALE 0.015
+#define WIDTH 320
+#define HEIGHT 240
+
 void debug_render_glyph(MTGlyph *glyph, int dx, int dy, float scale){
     size_t point_num;
     int x, y, sx, sy;
@@ -57,6 +66,26 @@ void debug_render_glyph(MTGlyph *glyph, int dx, int dy, float scale){
     y = glyph->points->y*scale;
     sx = x;
     sy = y;
+
+#if DEBUG_METRICS
+    render_line(&renderer, glyph->xmin*scale+dx, dy-glyph->ymin*scale,
+                glyph->xmax*scale+dx, dy-glyph->ymin*scale, 0, 255, 0);
+    render_line(&renderer, glyph->xmin*scale+dx, dy-glyph->ymax*scale,
+                glyph->xmax*scale+dx, dy-glyph->ymax*scale, 0, 255, 0);
+    render_line(&renderer, glyph->xmin*scale+dx, dy-glyph->ymin*scale,
+                glyph->xmin*scale+dx, dy-glyph->ymax*scale, 0, 255, 0);
+    render_line(&renderer, glyph->xmax*scale+dx, dy-glyph->ymin*scale,
+                glyph->xmax*scale+dx, dy-glyph->ymax*scale, 0, 255, 0);
+
+    render_line(&renderer, glyph->advance_width*scale+dx, dy-glyph->ymin*scale,
+                glyph->advance_width*scale+dx, dy-glyph->ymax*scale, 255, 0,
+                0);
+
+    render_line(&renderer, glyph->left_side_bearing*scale+dx,
+                dy-glyph->ymin*scale, glyph->left_side_bearing*scale+dx,
+                dy-glyph->ymax*scale, 0, 0, 255);
+#endif
+
     for(i=0,n=0;i<point_num;i++){
         if(i == glyph->contour_ends[n]){
             render_line(&renderer, x+dx, dy-y, sx+dx, dy-sy, 255, 255, 255);
@@ -79,14 +108,110 @@ void debug_render_glyph(MTGlyph *glyph, int dx, int dy, float scale){
     render_line(&renderer, x+dx, dy-y, sx+dx, dy-sy, 255, 255, 255);
     for(i=0;i<point_num;i++){
         render_set_pixel(&renderer, glyph->points[i].x*scale+dx,
-                         dy-glyph->points[i].y*scale, 255, 0, 0);
+                         dy-glyph->points[i].y*scale,
+                         glyph->points[i].on_curve ? 255 : 0,
+                         glyph->points[i].on_curve ? 0 : 255, 0);
     }
 }
 
-void loop(int ms) {
+void debug_render_str(MTFont *font, char *str, int dx, int dy, float scale) {
     MTGlyph *glyph;
+    int x = dx, y = 0;
+
+    size_t i;
+
+    size_t c = 0;
+
+    int byte_num = 1;
+
+#if DEBUG_UTF8
+    puts("=======================");
+#endif
+
+    for(i=0;i<strlen(str);i++){
+#if DEBUG_UTF8
+        printf("char: %x\n", (int)str[i]&0xFF);
+        printf("byte num: %x\n", byte_num);
+#endif
+        if(byte_num > 1){
+#if DEBUG_UTF8
+            printf("before shift: %lx\n", c);
+#endif
+            c <<= 6;
+#if DEBUG_UTF8
+            printf("after shift: %lx\n", c);
+            printf("new bits: %x\n", str[i]&0x3F);
+#endif
+            c |= str[i]&0x3F;
+#if DEBUG_UTF8
+            printf("after or: %lx\n", c);
+#endif
+            byte_num--;
+            if(byte_num > 1) continue;
+        }else{
+            if((str[i]&0xE0) == 0xC0){
+                c = str[i]&0x1F;
+                byte_num = 2;
+#if DEBUG_UTF8
+                printf("after init: %lx\n", c);
+#endif
+                continue;
+            }else if((str[i]&0xF0) == 0xE0){
+                c = str[i]&0x0F;
+                byte_num = 3;
+#if DEBUG_UTF8
+                printf("after init: %lx\n", c);
+#endif
+                continue;
+            }else if((str[i]&0xF8) == 0xF0){
+                c = str[i]&0x07;
+                byte_num = 4;
+#if DEBUG_UTF8
+                printf("after init: %lx\n", c);
+#endif
+                continue;
+            }else{
+                c = str[i];
+                byte_num = 1;
+            }
+        }
+        if(c == '\n'){
+            /* TODO */
+        }
+        if(c == ' '){
+            /* Ugly workaround because somehow many fonts don't seem to include
+             * an empty space character */
+            x += 400*scale;
+            continue;
+        }
+
+#if DEBUG_UTF8
+        printf("%lx, %c\n", c, (char)c);
+#endif
+        glyph = mt_font_get_glyph(font, c);
+        debug_render_glyph(glyph, x, dy-y, scale);
+
+        x += glyph->advance_width*scale;
+    }
+}
+
+double scale = SCALE;
+
+double x = (5-WIDTH/2)/SCALE;
+double y = (120-HEIGHT/2)/SCALE;
+
+void loop(int ms) {
+#if VIEW_GLYPHS
+    MTGlyph *glyph;
+#endif
+
+    float delta = 1/(float)ms;
 
     (void)ms;
+
+    render_clear(&renderer, 1);
+
+#if VIEW_GLYPHS
 
     if(!lock){
         if(render_keydown(&renderer, KEY_LEFT)){
@@ -104,11 +229,31 @@ void loop(int ms) {
     lock = render_keydown(&renderer, KEY_LEFT) |
            render_keydown(&renderer, KEY_RIGHT);
 
-    render_clear(&renderer, 1);
-
     glyph = mt_font_get_glyph(&font, selected);
 
     debug_render_glyph(glyph, 120, 120, 0.08);
+
+#else
+    debug_render_str(&font, "The quick brown fox jumps over the lazy dog. "
+                     "Victor jagt zw\303\266lf Boxk\303\244mpfer quer "
+                     "\303\274ber den gro\303\337en Sylter Deich. Voix "
+                     "ambigu\303\253 d\342\200\231un c\305\223ur qui, au "
+                     "z\303\251phyr, pr\303\251f\303\250re les jattes de "
+                     "kiwis.",
+                     x*scale+render_get_width(&renderer)/2,
+                     y*scale+render_get_height(&renderer)/2, scale);
+    if(render_keydown(&renderer, KEY_LSHIFT)){
+        scale *= 1.1;
+    }
+    if(render_keydown(&renderer, KEY_LCTRL)){
+        scale /= 1.1;
+    }
+
+    if(render_keydown(&renderer, KEY_UP)) y += 100*delta/scale;
+    if(render_keydown(&renderer, KEY_DOWN)) y -= 100*delta/scale;
+    if(render_keydown(&renderer, KEY_LEFT)) x += 100*delta/scale;
+    if(render_keydown(&renderer, KEY_RIGHT)) x -= 100*delta/scale;
+#endif
 
     render_show_fps(&renderer);
     render_update(&renderer);
@@ -140,7 +285,7 @@ int main(int argc, char **argv) {
 
     lock = 0;
 
-    render_init(&renderer, 320, 240, "MibiType");
+    render_init(&renderer, WIDTH, HEIGHT, "MibiType");
     render_main_loop(&renderer, loop);
 
     mt_font_free(&font);

@@ -67,8 +67,11 @@ typedef struct {
     size_t maxp_table_pos;
     size_t loca_table_pos;
     size_t cmap_table_pos;
+    size_t htmx_table_pos;
 
     unsigned short int added_contours;
+
+    unsigned short int advance_width_num;
 
     unsigned char *flags;
 

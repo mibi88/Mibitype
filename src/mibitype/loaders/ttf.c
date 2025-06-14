@@ -42,6 +42,8 @@
 
 #define MT_TTF_REQUIRED_TABLES_NUM 9
 
+#define MT_TTF_EXTEND_SIGN(n, b) ((n)&(1<<((b)-1)) ? -(((n)^0xFFFF)+1) : (n))
+
 enum {
     MT_TTF_CMAP = MT_TTF_CHAR_TO_INT('c', 'm', 'a', 'p'),
     MT_TTF_GLYF = MT_TTF_CHAR_TO_INT('g', 'l', 'y', 'f'),
@@ -241,18 +243,22 @@ int _mt_ttf_load_cmap(MTTTF *ttf, MTFont *font) {
 
     for(i=0;i<encoding_subtables;i++){
         MT_READER_JMP(font->reader, ttf->cmap_table_pos+4+i*8);
+
         platform_id = mt_reader_read_short(font->reader);
         ttf->cmap.platform_id = platform_id;
+
 #if MT_DEBUG
         printf("mibitype: Platform ID: %d\n", platform_id);
 #endif
+
+        platform_specific_id = mt_reader_read_short(font->reader);
+#if MT_DEBUG
+        printf("mibitype: Platform specific ID: %d\n",
+               platform_specific_id);
+#endif
+
         if(!platform_id){
             /* It is an unicode encoding subtable. */
-            platform_specific_id = mt_reader_read_short(font->reader);
-#if MT_DEBUG
-            printf("mibitype: Platform specific ID: %d\n",
-                   platform_specific_id);
-#endif
             /* Jump to the start of the mapping table */
             MT_READER_JMP(font->reader, ttf->cmap_table_pos+
                                         mt_reader_read_int(font->reader));
@@ -315,7 +321,24 @@ int _mt_ttf_load_cmap(MTTTF *ttf, MTFont *font) {
         }
     }
 
-    return 0;
+    return MT_E_NONE;
+}
+
+int _mt_ttf_load_hhea(MTTTF *ttf, MTFont *font) {
+    size_t offset;
+
+    int rc;
+
+    if((rc = _mt_ttf_get_table_pos(ttf, MT_TTF_HHEA, &offset))) return rc;
+
+    MT_READER_JMP(font->reader, offset);
+
+    MT_READER_SKIP(font->reader, 1*4+15*2);
+
+    ttf->advance_width_num = mt_reader_read_short(font->reader);
+    if(!ttf->advance_width_num) return MT_E_CORRUPTED;
+
+    return MT_E_NONE;
 }
 
 int mt_ttf_init(void *_data, void *_font) {
@@ -341,12 +364,17 @@ int mt_ttf_init(void *_data, void *_font) {
     if(_mt_ttf_get_table_pos(ttf, MT_TTF_CMAP, &ttf->cmap_table_pos)){
         return MT_E_CORRUPTED;
     }
+    if(_mt_ttf_get_table_pos(ttf, MT_TTF_HMTX, &ttf->htmx_table_pos)){
+        return MT_E_CORRUPTED;
+    }
 
     if((rc = _mt_ttf_load_maxp(ttf, _font))) return rc;
 
     if((rc = _mt_ttf_load_head(ttf, _font))) return rc;
 
     if((rc = _mt_ttf_load_cmap(ttf, _font))) return rc;
+
+    if((rc = _mt_ttf_load_hhea(ttf, _font))) return rc;
 
     ttf->flags = malloc(ttf->simple_points_max);
     if(ttf->flags == NULL) return MT_E_OUT_OF_MEM;
@@ -447,7 +475,7 @@ size_t mt_ttf_get_glyph_id(void *_data, void *_font, size_t c) {
 }
 
 void _mt_ttf_load_glyph_info(MTTTF *ttf, MTFont *font, MTGlyph *glyph,
-                             size_t id) {
+                             size_t id, int load_sizes, int load_metrics) {
     /* Load the glyph description. It is made up of:
      * int16 the number of contours (useful to know if it is a simple glyph).
      * int16 the minimum X coordinate.
@@ -455,6 +483,8 @@ void _mt_ttf_load_glyph_info(MTTTF *ttf, MTFont *font, MTGlyph *glyph,
      * int16 the maximum X coordinate.
      * int16 the maximum Y coordinate.
      */
+
+    size_t old_pos;
 
     if(ttf->long_offsets){
         MT_READER_JMP(font->reader, ttf->loca_table_pos+id*4);
@@ -467,10 +497,38 @@ void _mt_ttf_load_glyph_info(MTTTF *ttf, MTFont *font, MTGlyph *glyph,
     }
 
     ttf->added_contours = mt_reader_read_short(font->reader);
-    glyph->xmin = mt_reader_read_short(font->reader);
-    glyph->ymin = mt_reader_read_short(font->reader);
-    glyph->xmax = mt_reader_read_short(font->reader);
-    glyph->ymax = mt_reader_read_short(font->reader);
+    if(load_sizes){
+        glyph->xmin = mt_reader_read_short(font->reader);
+        glyph->ymin = mt_reader_read_short(font->reader);
+        glyph->xmax = mt_reader_read_short(font->reader);
+        glyph->ymax = mt_reader_read_short(font->reader);
+
+        glyph->xmin = MT_TTF_EXTEND_SIGN(glyph->xmin, 16);
+        glyph->ymin = MT_TTF_EXTEND_SIGN(glyph->ymin, 16);
+        glyph->xmax = MT_TTF_EXTEND_SIGN(glyph->xmax, 16);
+        glyph->ymax = MT_TTF_EXTEND_SIGN(glyph->ymax, 16);
+    }else{
+        MT_READER_SKIP(font->reader, 4*2);
+    }
+
+    if(load_metrics){
+        old_pos = font->reader->cur;
+        if(id < ttf->advance_width_num){
+            MT_READER_JMP(font->reader, ttf->htmx_table_pos+4*id);
+            glyph->advance_width = mt_reader_read_short(font->reader);
+        }else{
+            MT_READER_JMP(font->reader, ttf->htmx_table_pos+4*
+                          (ttf->advance_width_num-1));
+            glyph->advance_width = mt_reader_read_short(font->reader);
+            MT_READER_JMP(font->reader, ttf->htmx_table_pos+4*
+                          ttf->advance_width_num+
+                          (id-ttf->advance_width_num)*2);
+        }
+        glyph->left_side_bearing = mt_reader_read_short(font->reader);
+        glyph->left_side_bearing = MT_TTF_EXTEND_SIGN(glyph->left_side_bearing,
+                                                      16);
+        MT_READER_JMP(font->reader, old_pos);
+    }
 }
 
 int _mt_ttf_load_simple_glyph(MTTTF *ttf, MTFont *font, MTGlyph *glyph) {
@@ -710,7 +768,7 @@ int _mt_ttf_load_compound_glyph(MTTTF *ttf, MTFont *font, MTGlyph *glyph) {
         old_point_num = glyph->contour_num ?
                         glyph->contour_ends[glyph->contour_num-1]+1 : 0;
 
-        _mt_ttf_load_glyph_info(ttf, font, glyph, index);
+        _mt_ttf_load_glyph_info(ttf, font, glyph, index, 0, flags&(1<<9));
 
         if(!(ttf->added_contours&(1<<15))){
             if(_mt_ttf_load_simple_glyph(ttf, font, glyph)){
@@ -782,7 +840,7 @@ int _mt_ttf_load_compound_glyph(MTTTF *ttf, MTFont *font, MTGlyph *glyph) {
 int mt_ttf_load_glyph(void *_data, void *_font, void *_glyph, size_t id) {
     MTTTF *ttf = _data;
 
-    _mt_ttf_load_glyph_info(ttf, _font, _glyph, id);
+    _mt_ttf_load_glyph_info(ttf, _font, _glyph, id, 1, 1);
 
     mt_glyph_init(_glyph);
 

@@ -49,6 +49,9 @@ typedef struct {
     int xmin, ymin;
     int xmax, ymax;
 
+    unsigned int advance_width;
+    int left_side_bearing;
+
     MTPoint *points;
 
     size_t c;
