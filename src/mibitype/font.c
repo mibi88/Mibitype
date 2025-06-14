@@ -134,7 +134,10 @@ int _mt_font_load_glyph(MTFont *font, size_t c) {
     rc = MT_LOADERLIST_GET(font->loader, load_glyph)(font->data, font,
                            &tmp, mt_font_get_glyph_id(font, c));
 
-    if(rc) return rc;
+    if(rc){
+        mt_glyph_free(&tmp);
+        return rc;
+    }
 
     tmp.c = c;
 
@@ -166,12 +169,12 @@ MTGlyph *mt_font_get_glyph(MTFont *font, size_t c) {
     if(glyph == NULL){
 #if MT_DEBUG
         size_t i;
-        puts("========");
+        puts("mibitype: ========");
         for(i=0;i<font->glyph_num;i++){
             printf("mibitype: Glyph %lu is already loaded.\n",
                    font->glyphs[i].c);
         }
-        puts("========");
+        puts("mibitype: ========");
 #endif
         if(_mt_font_load_glyph(font, c)){
 #if MT_DEBUG
@@ -195,6 +198,8 @@ void mt_font_free(MTFont *font) {
     for(i=0;i<font->glyph_num;i++){
         mt_glyph_free(font->glyphs+i);
     }
+
+    mt_glyph_free(&font->missing);
 
     free(font->glyphs);
     font->glyphs = NULL;

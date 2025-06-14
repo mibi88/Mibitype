@@ -59,8 +59,9 @@ typedef struct {
     unsigned short int simple_points_max;
 
     short int long_offsets;
-    unsigned short int encoding_subtables;
+
     size_t best_map;
+    MTTTFCmap cmap;
 
     size_t glyf_table_pos;
     size_t maxp_table_pos;

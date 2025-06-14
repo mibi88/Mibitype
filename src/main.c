@@ -50,7 +50,7 @@ void debug_render_glyph(MTGlyph *glyph, int dx, int dy, float scale){
     size_t point_num;
     int x, y, sx, sy;
     size_t i, n;
-    if(!glyph->contour_ends) return;
+    if(glyph->contour_ends == NULL) return;
     point_num = glyph->contour_ends[glyph->contour_num-1];
     if(!point_num) return;
     x = glyph->points->x*scale;

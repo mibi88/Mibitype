@@ -214,6 +214,110 @@ int _mt_ttf_load_head(MTTTF *ttf, MTFont *font) {
     return 0;
 }
 
+int _mt_ttf_load_cmap(MTTTF *ttf, MTFont *font) {
+    size_t i;
+
+    unsigned short int encoding_subtables;
+
+    unsigned short int platform_id;
+    unsigned short int platform_specific_id;
+    unsigned short int format;
+
+    unsigned long int length;
+    unsigned long int group_num;
+#if MT_DEBUG
+    unsigned long int seg_count;
+    unsigned long int start_char, end_char, start_index;
+    size_t n;
+#endif
+
+    (void)length;
+
+    MT_READER_JMP(font->reader, ttf->cmap_table_pos);
+
+    /* Skip the version number (which is zero). */
+    MT_READER_SKIP(font->reader, 2);
+    encoding_subtables = mt_reader_read_short(font->reader);
+
+    for(i=0;i<encoding_subtables;i++){
+        MT_READER_JMP(font->reader, ttf->cmap_table_pos+4+i*8);
+        platform_id = mt_reader_read_short(font->reader);
+        ttf->cmap.platform_id = platform_id;
+#if MT_DEBUG
+        printf("mibitype: Platform ID: %d\n", platform_id);
+#endif
+        if(!platform_id){
+            /* It is an unicode encoding subtable. */
+            platform_specific_id = mt_reader_read_short(font->reader);
+#if MT_DEBUG
+            printf("mibitype: Platform specific ID: %d\n",
+                   platform_specific_id);
+#endif
+            /* Jump to the start of the mapping table */
+            MT_READER_JMP(font->reader, ttf->cmap_table_pos+
+                                        mt_reader_read_int(font->reader));
+
+            if(platform_specific_id == 3 || platform_specific_id == 4){
+                /* It is a unicode 2.0 full repertoire (IDK what it means)
+                 * character table */
+                format = mt_reader_read_short(font->reader);
+                ttf->cmap.format = format;
+#if MT_DEBUG
+                printf("mibitype: Character map format: %d\n", format);
+#endif
+                if(format == 4){
+                    /* It is a two byte encoding format. */
+                    length = mt_reader_read_short(font->reader);
+
+                    /* Skip the language code */
+                    MT_READER_SKIP(font->reader, 2);
+
+                    ttf->cmap.data_cur = font->reader->cur;
+
+#if MT_DEBUG
+                    /* Load the seg count */
+                    seg_count = mt_reader_read_short(font->reader)/2;
+                    printf("mibitype: Segment count: %lu\n", seg_count);
+#endif
+
+                    ttf->best_map = i;
+                    break;
+                }else if(format == 12){
+                    /* Skip the reserved thing */
+                    MT_READER_SKIP(font->reader, 2);
+                    length = mt_reader_read_int(font->reader);
+
+                    /* Skip the language code */
+                    MT_READER_SKIP(font->reader, 4);
+                    group_num = mt_reader_read_int(font->reader);
+                    ttf->cmap.group_num = group_num;
+                    ttf->cmap.data_cur = font->reader->cur;
+                    ttf->best_map = i;
+
+#if MT_DEBUG
+                    printf("mibitype: Group num: %lu\n", group_num);
+                    for(n=0;n<group_num;n++){
+                        start_char = mt_reader_read_int(font->reader);
+                        end_char = mt_reader_read_int(font->reader);
+                        start_index = mt_reader_read_int(font->reader);
+                        printf("mibitype: start char: %04lx\n"
+                               "mibitype: end char: %04lx\n"
+                               "mibitype: start index: %04lx\n", start_char,
+                               end_char, start_index);
+                    }
+
+                    break;
+#endif
+                }
+            }
+        }else if(platform_id == 3){
+            /* TODO: Implement this! */
+        }
+    }
+
+    return 0;
+}
+
 int mt_ttf_init(void *_data, void *_font) {
     int rc;
 
@@ -242,6 +346,8 @@ int mt_ttf_init(void *_data, void *_font) {
 
     if((rc = _mt_ttf_load_head(ttf, _font))) return rc;
 
+    if((rc = _mt_ttf_load_cmap(ttf, _font))) return rc;
+
     ttf->flags = malloc(ttf->simple_points_max);
     if(ttf->flags == NULL) return MT_E_OUT_OF_MEM;
 
@@ -250,14 +356,93 @@ int mt_ttf_init(void *_data, void *_font) {
 
 size_t mt_ttf_get_glyph_id(void *_data, void *_font, size_t c) {
     MTTTF *ttf = _data;
+    MTFont *font = _font;
 
-    (void)_font;
-    (void)c;
+    size_t i;
+    unsigned long int start_char, end_char, start_index;
 
-    (void)ttf;
+    unsigned short int seg_count;
 
-    /* TODO: Load the cmap table */
+    size_t old_pos;
 
+    size_t delta, offset;
+
+    /* TODO: Make something clean. */
+
+    MT_READER_JMP(font->reader, ttf->cmap.data_cur);
+
+    if(ttf->cmap.platform_id == 0){
+        if(ttf->cmap.format == 4){
+#if MT_DEBUG
+            puts("mibitype: Loading glyph id from cmap format 4!");
+#endif
+            /* Load the seg count */
+            seg_count = mt_reader_read_short(font->reader)/2;
+
+            /* Skip all the search related things */
+            MT_READER_SKIP(font->reader, 2*3);
+
+            /* Search the segment (endcodes are sorted, but I don't kniw if
+             * they can contain multiple elements with the same value so I'm
+             * not doing any binary search for now. */
+            for(i=0;i<seg_count;i++){
+                end_char = mt_reader_read_short(font->reader);
+                old_pos = font->reader->cur;
+                if(end_char >= c){
+                    MT_READER_SKIP(font->reader, seg_count*2);
+                    start_char = mt_reader_read_short(font->reader);
+#if MT_DEBUG
+                    printf("mibitype: start_char: %lx, end_char: %lx\n",
+                           start_char, end_char);
+#endif
+                    if(start_char > c){
+                        /* This segment doesn't contain this char, go back */
+                        MT_READER_JMP(font->reader, old_pos);
+                    }else{
+                        /* The char is in this segment, get the index */
+                        MT_READER_SKIP(font->reader, seg_count*2-2);
+                        delta = mt_reader_read_short(font->reader);
+
+                        MT_READER_SKIP(font->reader, seg_count*2-2);
+                        offset = mt_reader_read_short(font->reader);
+
+#if MT_DEBUG
+                        printf("mibitype: Segment found: start_char: %lx, "
+                               "end_char: %lx, delta: %lx, offset: %lx\n",
+                               start_char, end_char, delta, offset);
+#endif
+                        if(offset){
+                            MT_READER_SKIP(font->reader,
+                                           offset+2*(c-start_char)-2);
+                            return delta+mt_reader_read_short(font->reader);
+                        }else{
+                            return (delta+c)&0xFFFF;
+                        }
+                    }
+                }
+            }
+#if MT_DEBUG
+            puts("mibitype: NO CORRESPONDING GLYPH ID FOUND!");
+            return 0;
+#endif
+        }else if(ttf->cmap.format == 12){
+            for(i=0;i<ttf->cmap.group_num;i++){
+                start_char = mt_reader_read_int(font->reader);
+                end_char = mt_reader_read_int(font->reader);
+                start_index = mt_reader_read_int(font->reader);
+                if(c >= start_char && c <= end_char){
+#if MT_DEBUG
+                    puts("mibitype: Using table 12!");
+#endif
+                    return c-start_char+start_index;
+                }
+            }
+        }
+    }
+
+#if MT_DEBUG
+    puts("mibitype: NO SUPPORTED CMAP TABLE FOUND!");
+#endif
     return c;
 }
 
@@ -316,6 +501,8 @@ int _mt_ttf_load_simple_glyph(MTTTF *ttf, MTFont *font, MTGlyph *glyph) {
     int x, y;
 
     void *new;
+
+    if(!new_contour_num) return MT_E_NONE;
 
     new = realloc(glyph->contour_ends, new_contour_num*sizeof(size_t));
     if(new == NULL) return MT_E_OUT_OF_MEM;
@@ -527,7 +714,7 @@ int _mt_ttf_load_compound_glyph(MTTTF *ttf, MTFont *font, MTGlyph *glyph) {
 
         if(!(ttf->added_contours&(1<<15))){
             if(_mt_ttf_load_simple_glyph(ttf, font, glyph)){
-                return MT_E_NONE;
+                return MT_E_CORRUPTED;
             }
         }else{
             return MT_E_NONE;
@@ -586,7 +773,7 @@ int _mt_ttf_load_compound_glyph(MTTTF *ttf, MTFont *font, MTGlyph *glyph) {
     }while(flags&(1<<5));
 
 #if MT_DEBUG
-    puts("===========");
+    puts("mibitype: ===========");
 #endif
 
     return MT_E_NONE;
@@ -625,149 +812,3 @@ void mt_ttf_free(void *_data, void *_font) {
     free(ttf->table_dir);
     ttf->table_dir = NULL;
 }
-
-
-/* Old code follows, that needs to be adapted to the new data structures */
-
-#if 0
-
-int mt_ttf_load_cmap(MTTTF *ttf) {
-    size_t i;
-    uint16_t platform_id;
-    uint16_t platform_specific_id;
-    uint16_t format;
-    uint32_t length;
-    uint32_t group_num;
-#if MT_DEBUG
-    uint32_t start_char, end_char, start_index;
-    size_t n;
-#endif
-
-    (void)length;
-
-    ttf->cur = ttf->cmap_table_pos;
-
-    /* Skip the version number (which is zero). */
-    mt_ttf_skip(ttf, 2);
-    ttf->encoding_subtables = mt_ttf_read_short(ttf);
-    ttf->cmaps = malloc(ttf->encoding_subtables*sizeof(MTTTFCmap));
-    if(ttf->cmaps == NULL) return 1;
-
-    for(i=0;i<ttf->encoding_subtables;i++){
-        ttf->cur = ttf->cmap_table_pos+4+i*8;
-        platform_id = mt_ttf_read_short(ttf);
-        ttf->cmaps[i].platform_id = platform_id;
-#if MT_DEBUG
-        printf("mibitype: Platform ID: %d\n", platform_id);
-#endif
-        if(!platform_id){
-            /* It is an unicode encoding subtable. */
-            platform_specific_id = mt_ttf_read_short(ttf);
-#if MT_DEBUG
-            printf("mibitype: Platform specific ID: %d\n",
-                   platform_specific_id);
-#endif
-            /* Jump to the start of the mapping table */
-            ttf->cur = ttf->cmap_table_pos+mt_ttf_read_int(ttf);
-            if(platform_specific_id == 3 || platform_specific_id == 4){
-                /* It is a unicode 2.0 full repertoire (IDK what it means)
-                 * character table */
-                format = mt_ttf_read_short(ttf);
-                ttf->cmaps[i].format = format;
-#if MT_DEBUG
-                printf("mibitype: Character map format: %d\n", format);
-#endif
-                if(format == 4){
-                    /* It is a two byte encoding format. */
-                    length = mt_ttf_read_short(ttf);
-
-                    /* Skip the language code */
-                    mt_ttf_skip(ttf, 2);
-
-                    /* TODO: Implement this awful thing! */
-                }else if(format == 12){
-                    /* It is a very weird format. */
-
-                    /* Skip the reserved thing */
-                    mt_ttf_skip(ttf, 2);
-                    length = mt_ttf_read_int(ttf);
-
-                    /* Skip the language code */
-                    mt_ttf_skip(ttf, 4);
-                    group_num = mt_ttf_read_int(ttf);
-                    ttf->cmaps[i].group_num = group_num;
-                    ttf->cmaps[i].data_cur = ttf->cur;
-                    ttf->best_map = i;
-
-#if MT_DEBUG
-                    printf("mibitype: Group num: %d\n", group_num);
-                    for(n=0;n<group_num;n++){
-                        start_char = mt_ttf_read_int(ttf);
-                        end_char = mt_ttf_read_int(ttf);
-                        start_index = mt_ttf_read_int(ttf);
-                        printf("mibitype: start char: %04x\n"
-                               "mibitype: end char: %04x\n"
-                               "mibitype: start index: %04x\n", start_char,
-                               end_char, start_index);
-                    }
-#endif
-                }
-            }
-        }else if(platform_id == 3){
-
-            /* ISO platform ID */
-            platform_specific_id = mt_ttf_read_short(ttf);
-#if MT_DEBUG
-            printf("mibitype: Platform specific ID: %d\n",
-                   platform_specific_id);
-#endif
-
-            if(platform_specific_id == 1){
-
-                /* Unicode BMP */
-                format = mt_ttf_read_short(ttf);
-                ttf->cmaps[i].format = format;
-#if MT_DEBUG
-                printf("mibitype: Character map format: %d\n", format);
-#endif
-                /* TODO: Implement this. */
-                ttf->best_map = i;
-            }
-        }
-    }
-
-    return 0;
-}
-
-size_t mt_ttf_get_index(MTTTF *ttf, uint32_t c) {
-    size_t n;
-    uint32_t start_char, end_char, start_index;
-    MTTTFCmap *cmap;
-    cmap = ttf->cmaps+ttf->best_map;
-
-    /* TODO: Make something clean. */
-
-    ttf->cur = cmap->data_cur;
-
-    if(cmap->platform_id == 0){
-        if(cmap->format == 4){
-            /* TODO */
-        }else if(cmap->format == 12){
-            for(n=0;n<cmap->group_num;n++){
-                start_char = mt_ttf_read_int(ttf);
-                end_char = mt_ttf_read_int(ttf);
-                start_index = mt_ttf_read_int(ttf);
-                if(c >= start_char && c <= end_char){
-                    return c-start_char+start_index;
-                }
-            }
-        }
-    }else if(cmap->platform_id == 3){
-        /* TODO: Implement this correctly. */
-        return c-0x1D;
-    }
-
-    return 0;
-}
-
-#endif
