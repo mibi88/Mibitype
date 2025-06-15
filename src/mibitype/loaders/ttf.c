@@ -209,19 +209,19 @@ int _mt_ttf_load_head(MTTTF *ttf, MTFont *font) {
     MT_READER_SKIP(font->reader, 4*4+2);
     ttf->units_per_em = mt_reader_read_short(font->reader);
     MT_READER_SKIP(font->reader, 2*8);
-    ttf->xmin = mt_reader_read_short(font->reader);
-    ttf->ymin = mt_reader_read_short(font->reader);
-    ttf->xmax = mt_reader_read_short(font->reader);
-    ttf->ymax = mt_reader_read_short(font->reader);
+    font->xmin = mt_reader_read_short(font->reader);
+    font->ymin = mt_reader_read_short(font->reader);
+    font->xmax = mt_reader_read_short(font->reader);
+    font->ymax = mt_reader_read_short(font->reader);
 
-    ttf->xmin = MT_TTF_EXTEND_SIGN(ttf->xmin, 16);
-    ttf->ymin = MT_TTF_EXTEND_SIGN(ttf->ymin, 16);
-    ttf->xmax = MT_TTF_EXTEND_SIGN(ttf->xmax, 16);
-    ttf->ymax = MT_TTF_EXTEND_SIGN(ttf->ymax, 16);
+    font->xmin = MT_TTF_EXTEND_SIGN(font->xmin, 16);
+    font->ymin = MT_TTF_EXTEND_SIGN(font->ymin, 16);
+    font->xmax = MT_TTF_EXTEND_SIGN(font->xmax, 16);
+    font->ymax = MT_TTF_EXTEND_SIGN(font->ymax, 16);
 
 #if MT_DEBUG
     printf("mibitype: Max glyph sizes: xmin: %d, ymin: %d, xmax: %d, "
-           "ymax: %d\n", ttf->xmin, ttf->ymin, ttf->xmax, ttf->ymax);
+           "ymax: %d\n", font->xmin, font->ymin, font->xmax, font->ymax);
 #endif
 
     MT_READER_SKIP(font->reader, 3*2);
@@ -351,7 +351,17 @@ int _mt_ttf_load_hhea(MTTTF *ttf, MTFont *font) {
 
     MT_READER_JMP(font->reader, offset);
 
-    MT_READER_SKIP(font->reader, 1*4+15*2);
+    MT_READER_SKIP(font->reader, 1*4);
+
+    font->ascender = mt_reader_read_short(font->reader);
+    font->descender = mt_reader_read_short(font->reader);
+    font->line_gap = mt_reader_read_short(font->reader);
+
+    font->ascender = MT_TTF_EXTEND_SIGN(font->ascender, 16);
+    font->descender = MT_TTF_EXTEND_SIGN(font->descender, 16);
+    font->line_gap = MT_TTF_EXTEND_SIGN(font->line_gap, 16);
+
+    MT_READER_SKIP(font->reader, 12*2);
 
     ttf->advance_width_num = mt_reader_read_short(font->reader);
     if(!ttf->advance_width_num) return MT_E_CORRUPTED;

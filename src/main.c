@@ -95,6 +95,16 @@ void debug_render_glyph(MTFont *font, MTGlyph *glyph, int dx, int dy,
 
     render_line(&renderer, left_side_bearing+dx, dy-ymin, left_side_bearing+dx,
                 dy-ymax, 0, 0, 255);
+
+    render_line(&renderer, xmin+dx, dy, xmax+dx, dy, 255, 255, 0);
+
+    render_line(&renderer, xmin+dx, dy-PIXELS(font->ascender*scale), xmax+dx,
+                dy-PIXELS(font->ascender*scale), 0, 255, 255);
+    render_line(&renderer, xmin+dx, dy-PIXELS(font->descender*scale), xmax+dx,
+                dy-PIXELS(font->descender*scale), 255, 0, 255);
+    render_line(&renderer, xmin+dx, dy-PIXELS(font->descender*scale), xmin+dx,
+                dy-PIXELS((font->descender-font->line_gap)*scale),
+                255, 0, 255);
 #endif
 
     for(i=0,n=0;i<point_num;i++){
@@ -128,7 +138,7 @@ void debug_render_glyph(MTFont *font, MTGlyph *glyph, int dx, int dy,
 
 void debug_render_str(MTFont *font, char *str, int dx, int dy, float scale) {
     MTGlyph *glyph;
-    int x = dx, y = 0;
+    int x = dx, y = dy;
 
     size_t i;
 
@@ -188,7 +198,9 @@ void debug_render_str(MTFont *font, char *str, int dx, int dy, float scale) {
             }
         }
         if(c == '\n'){
-            /* TODO */
+            x = dx;
+            y += PIXELS((font->ascender+font->line_gap-font->descender)*scale);
+            continue;
         }
         if(c == ' '){
             /* Ugly workaround because somehow many fonts don't seem to include
@@ -201,7 +213,7 @@ void debug_render_str(MTFont *font, char *str, int dx, int dy, float scale) {
         printf("%lx, %c\n", c, (char)c);
 #endif
         glyph = mt_font_get_glyph(font, c);
-        debug_render_glyph(font, glyph, x, dy-y, scale);
+        debug_render_glyph(font, glyph, x, y, scale);
 
         x += PIXELS(glyph->advance_width*scale);
     }
@@ -246,12 +258,12 @@ void loop(int ms) {
     debug_render_glyph(&font, glyph, 120, 120, 0.08);
 
 #else
-    debug_render_str(&font, "The quick brown fox jumps over the lazy dog. "
+    debug_render_str(&font, "The quick brown fox jumps over the lazy dog.\n"
                      "Victor jagt zw\303\266lf Boxk\303\244mpfer quer "
-                     "\303\274ber den gro\303\337en Sylter Deich. Voix "
+                     "\303\274ber den gro\303\337en Sylter Deich.\nVoix "
                      "ambigu\303\253 d\342\200\231un c\305\223ur qui, au "
                      "z\303\251phyr, pr\303\251f\303\250re les jattes de "
-                     "kiwis. Chinese characters can also be displayed: "
+                     "kiwis.\nChinese characters can also be displayed: "
                      "\344\275\240\345\245\275.",
                      x*scale+render_get_width(&renderer)/2,
                      y*scale+render_get_height(&renderer)/2, scale);

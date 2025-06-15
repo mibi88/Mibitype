@@ -51,6 +51,10 @@ typedef struct {
 
     int dpi;
 
+    int xmin, xmax, ymin, ymax;
+
+    int ascender, descender, line_gap;
+
     size_t glyph_num;
 
     size_t loader;
