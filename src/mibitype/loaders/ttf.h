@@ -58,6 +58,8 @@ typedef struct {
     unsigned short int glyph_num;
     unsigned short int simple_points_max;
 
+    unsigned short int units_per_em;
+
     short int long_offsets;
 
     size_t best_map;
@@ -87,6 +89,8 @@ size_t mt_ttf_get_glyph_id(void *_data, void *_font, size_t c);
 int mt_ttf_load_glyph(void *_data, void *_font, void *_glyph, size_t id);
 
 int mt_ttf_load_missing(void *_data, void *_font, void *_glyph);
+
+int mt_ttf_size_to_pixels(void *_data, void *_font, int points, int size);
 
 void mt_ttf_free(void *_data, void *_font);
 

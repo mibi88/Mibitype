@@ -44,6 +44,7 @@ MTLoader mt_loaders[MT_LOADER_AMOUNT] = {
         mt_ttf_get_glyph_id,
         mt_ttf_load_glyph,
         mt_ttf_load_missing,
+        mt_ttf_size_to_pixels,
         mt_ttf_free
     }
 };

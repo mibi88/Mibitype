@@ -49,6 +49,8 @@ typedef struct {
 
     MTGlyph missing;
 
+    int dpi;
+
     size_t glyph_num;
 
     size_t loader;
@@ -58,9 +60,11 @@ typedef struct {
     void *data;
 } MTFont;
 
-int mt_font_init(MTFont *font, MTReader *reader);
+int mt_font_init(MTFont *font, MTReader *reader, int dpi);
 
 MTGlyph *mt_font_get_glyph(MTFont *font, size_t c);
+
+int mt_font_size_to_pixels(MTFont *font, int points, int size);
 
 void mt_font_free(MTFont *font);
 

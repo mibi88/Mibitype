@@ -39,11 +39,13 @@
 
 #include <string.h>
 
-int mt_font_init(MTFont *font, MTReader *reader) {
+int mt_font_init(MTFont *font, MTReader *reader, int dpi) {
     size_t i;
     int found = 0;
 
     int rc;
+
+    font->dpi = dpi;
 
     font->reader = reader;
 
@@ -190,6 +192,11 @@ MTGlyph *mt_font_get_glyph(MTFont *font, size_t c) {
 #endif
 
     return glyph;
+}
+
+int mt_font_size_to_pixels(MTFont *font, int points, int size) {
+    return MT_LOADERLIST_GET(font->loader, size_to_pixels)(font->data, font,
+                             points, size);
 }
 
 void mt_font_free(MTFont *font) {

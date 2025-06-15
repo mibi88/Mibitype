@@ -45,6 +45,7 @@ typedef struct {
     size_t (*get_glyph_id)(void *_data, void *_font, size_t c);
     int (*load_glyph)(void *_data, void *_font, void *_glyph, size_t id);
     int (*load_missing)(void *_data, void *_font, void *_glyph);
+    int (*size_to_pixels)(void *_data, void *_font, int points, int size);
     void (*free)(void *_data, void *_font);
 } MTLoader;
 

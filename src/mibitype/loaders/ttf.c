@@ -206,7 +206,9 @@ int _mt_ttf_load_head(MTTTF *ttf, MTFont *font) {
     if((rc = _mt_ttf_get_table_pos(ttf, MT_TTF_HEAD, &offset))) return rc;
 
     MT_READER_JMP(font->reader, offset);
-    MT_READER_SKIP(font->reader, 2*2+4*3+2*2+8*2+2*7);
+    MT_READER_SKIP(font->reader, 4*3+2);
+    ttf->units_per_em = mt_reader_read_short(font->reader);
+    MT_READER_SKIP(font->reader, 2*2+8*2+2*7);
     ttf->long_offsets = mt_reader_read_short(font->reader);
 
 #if MT_DEBUG
@@ -862,6 +864,12 @@ int mt_ttf_load_glyph(void *_data, void *_font, void *_glyph, size_t id) {
 
 int mt_ttf_load_missing(void *_data, void *_font, void *_glyph) {
     return mt_ttf_load_glyph(_data, _font, _glyph, 0);
+}
+
+int mt_ttf_size_to_pixels(void *_data, void *_font, int points, int size) {
+    MTFont *font = _font;
+    MTTTF *ttf = _data;
+    return size*(points*font->dpi)/(72*ttf->units_per_em);
 }
 
 void mt_ttf_free(void *_data, void *_font) {

@@ -51,47 +51,58 @@ char lock;
 #define DEBUG_METRICS 0
 #define VIEW_GLYPHS 0
 
-#define SCALE 0.015
+#define SCALE 1
 #define WIDTH 320
 #define HEIGHT 240
 
-void debug_render_glyph(MTGlyph *glyph, int dx, int dy, float scale){
+int points = 72;
+
+#define PIXELS(s) mt_font_size_to_pixels(font, points, s)
+
+void debug_render_glyph(MTFont *font, MTGlyph *glyph, int dx, int dy,
+                        float scale){
     size_t point_num;
     int x, y, sx, sy;
     size_t i, n;
+
+    int xmin, xmax, ymin, ymax;
+    int advance_width, left_side_bearing;
+
     if(glyph->contour_ends == NULL) return;
     point_num = glyph->contour_ends[glyph->contour_num-1];
     if(!point_num) return;
-    x = glyph->points->x*scale;
-    y = glyph->points->y*scale;
+    x = PIXELS(glyph->points->x*scale);
+    y = PIXELS(glyph->points->y*scale);
     sx = x;
     sy = y;
 
 #if DEBUG_METRICS
-    render_line(&renderer, glyph->xmin*scale+dx, dy-glyph->ymin*scale,
-                glyph->xmax*scale+dx, dy-glyph->ymin*scale, 0, 255, 0);
-    render_line(&renderer, glyph->xmin*scale+dx, dy-glyph->ymax*scale,
-                glyph->xmax*scale+dx, dy-glyph->ymax*scale, 0, 255, 0);
-    render_line(&renderer, glyph->xmin*scale+dx, dy-glyph->ymin*scale,
-                glyph->xmin*scale+dx, dy-glyph->ymax*scale, 0, 255, 0);
-    render_line(&renderer, glyph->xmax*scale+dx, dy-glyph->ymin*scale,
-                glyph->xmax*scale+dx, dy-glyph->ymax*scale, 0, 255, 0);
+    xmin = PIXELS(glyph->xmin*scale);
+    xmax = PIXELS(glyph->xmax*scale);
+    ymin = PIXELS(glyph->ymin*scale);
+    ymax = PIXELS(glyph->ymax*scale);
 
-    render_line(&renderer, glyph->advance_width*scale+dx, dy-glyph->ymin*scale,
-                glyph->advance_width*scale+dx, dy-glyph->ymax*scale, 255, 0,
-                0);
+    advance_width = PIXELS(glyph->advance_width*scale);
+    left_side_bearing = PIXELS(glyph->left_side_bearing*scale);
 
-    render_line(&renderer, glyph->left_side_bearing*scale+dx,
-                dy-glyph->ymin*scale, glyph->left_side_bearing*scale+dx,
-                dy-glyph->ymax*scale, 0, 0, 255);
+    render_line(&renderer, xmin+dx, dy-ymin, xmax+dx, dy-ymin, 0, 255, 0);
+    render_line(&renderer, xmin+dx, dy-ymax, xmax+dx, dy-ymax, 0, 255, 0);
+    render_line(&renderer, xmin+dx, dy-ymin, xmin+dx, dy-ymax, 0, 255, 0);
+    render_line(&renderer, xmax+dx, dy-ymin, xmax+dx, dy-ymax, 0, 255, 0);
+
+    render_line(&renderer, advance_width+dx, dy-ymin, advance_width+dx,
+                dy-ymax, 255, 0, 0);
+
+    render_line(&renderer, left_side_bearing+dx, dy-ymin, left_side_bearing+dx,
+                dy-ymax, 0, 0, 255);
 #endif
 
     for(i=0,n=0;i<point_num;i++){
         if(i == glyph->contour_ends[n]){
             render_line(&renderer, x+dx, dy-y, sx+dx, dy-sy, 255, 255, 255);
             if(i < point_num-1){
-                x = glyph->points[i+1].x*scale;
-                y = glyph->points[i+1].y*scale;
+                x = PIXELS(glyph->points[i+1].x*scale);
+                y = PIXELS(glyph->points[i+1].y*scale);
                 sx = x;
                 sy = y;
             }else{
@@ -99,16 +110,17 @@ void debug_render_glyph(MTGlyph *glyph, int dx, int dy, float scale){
             }
             n++;
         }else{
-            render_line(&renderer, x+dx, dy-y, glyph->points[i+1].x*scale+dx,
-                        dy-glyph->points[i+1].y*scale, 255, 255, 255);
-            x = glyph->points[i+1].x*scale;
-            y = glyph->points[i+1].y*scale;
+            render_line(&renderer, x+dx, dy-y,
+                        PIXELS(glyph->points[i+1].x*scale)+dx,
+                        dy-PIXELS(glyph->points[i+1].y*scale), 255, 255, 255);
+            x = PIXELS(glyph->points[i+1].x*scale);
+            y = PIXELS(glyph->points[i+1].y*scale);
         }
     }
     render_line(&renderer, x+dx, dy-y, sx+dx, dy-sy, 255, 255, 255);
     for(i=0;i<point_num;i++){
-        render_set_pixel(&renderer, glyph->points[i].x*scale+dx,
-                         dy-glyph->points[i].y*scale,
+        render_set_pixel(&renderer, PIXELS(glyph->points[i].x*scale)+dx,
+                         dy-PIXELS(glyph->points[i].y*scale),
                          glyph->points[i].on_curve ? 255 : 0,
                          glyph->points[i].on_curve ? 0 : 255, 0);
     }
@@ -181,7 +193,7 @@ void debug_render_str(MTFont *font, char *str, int dx, int dy, float scale) {
         if(c == ' '){
             /* Ugly workaround because somehow many fonts don't seem to include
              * an empty space character */
-            x += 400*scale;
+            x += PIXELS(400*scale);
             continue;
         }
 
@@ -189,9 +201,9 @@ void debug_render_str(MTFont *font, char *str, int dx, int dy, float scale) {
         printf("%lx, %c\n", c, (char)c);
 #endif
         glyph = mt_font_get_glyph(font, c);
-        debug_render_glyph(glyph, x, dy-y, scale);
+        debug_render_glyph(font, glyph, x, dy-y, scale);
 
-        x += glyph->advance_width*scale;
+        x += PIXELS(glyph->advance_width*scale);
     }
 }
 
@@ -231,7 +243,7 @@ void loop(int ms) {
 
     glyph = mt_font_get_glyph(&font, selected);
 
-    debug_render_glyph(glyph, 120, 120, 0.08);
+    debug_render_glyph(&font, glyph, 120, 120, 0.08);
 
 #else
     debug_render_str(&font, "The quick brown fox jumps over the lazy dog. "
@@ -244,10 +256,10 @@ void loop(int ms) {
                      x*scale+render_get_width(&renderer)/2,
                      y*scale+render_get_height(&renderer)/2, scale);
     if(render_keydown(&renderer, KEY_LSHIFT)){
-        scale *= 1.1;
+        scale *= 1.01;
     }
     if(render_keydown(&renderer, KEY_LCTRL)){
-        scale /= 1.1;
+        scale /= 1.01;
     }
 
     if(render_keydown(&renderer, KEY_UP)) y += 100*delta/scale;
@@ -275,7 +287,7 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    if(mt_font_init(&font, &reader)){
+    if(mt_font_init(&font, &reader, 90)){
         fputs("mibitype: Unable to load the font!\n", stderr);
 
         return EXIT_FAILURE;
