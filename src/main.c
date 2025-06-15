@@ -239,7 +239,8 @@ void loop(int ms) {
                      "\303\274ber den gro\303\337en Sylter Deich. Voix "
                      "ambigu\303\253 d\342\200\231un c\305\223ur qui, au "
                      "z\303\251phyr, pr\303\251f\303\250re les jattes de "
-                     "kiwis.",
+                     "kiwis. Chinese characters can also be displayed: "
+                     "\344\275\240\345\245\275.",
                      x*scale+render_get_width(&renderer)/2,
                      y*scale+render_get_height(&renderer)/2, scale);
     if(render_keydown(&renderer, KEY_LSHIFT)){

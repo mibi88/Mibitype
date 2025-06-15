@@ -448,6 +448,11 @@ size_t mt_ttf_get_glyph_id(void *_data, void *_font, size_t c) {
                         }
                     }
                 }
+#if MT_DEBUG
+                else{
+                    printf("mibitype: end_char: %lx\n", end_char);
+                }
+#endif
             }
 #if MT_DEBUG
             puts("mibitype: NO CORRESPONDING GLYPH ID FOUND!");
