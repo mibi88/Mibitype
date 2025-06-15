@@ -206,9 +206,25 @@ int _mt_ttf_load_head(MTTTF *ttf, MTFont *font) {
     if((rc = _mt_ttf_get_table_pos(ttf, MT_TTF_HEAD, &offset))) return rc;
 
     MT_READER_JMP(font->reader, offset);
-    MT_READER_SKIP(font->reader, 4*3+2);
+    MT_READER_SKIP(font->reader, 4*4+2);
     ttf->units_per_em = mt_reader_read_short(font->reader);
-    MT_READER_SKIP(font->reader, 2*2+8*2+2*7);
+    MT_READER_SKIP(font->reader, 2*8);
+    ttf->xmin = mt_reader_read_short(font->reader);
+    ttf->ymin = mt_reader_read_short(font->reader);
+    ttf->xmax = mt_reader_read_short(font->reader);
+    ttf->ymax = mt_reader_read_short(font->reader);
+
+    ttf->xmin = MT_TTF_EXTEND_SIGN(ttf->xmin, 16);
+    ttf->ymin = MT_TTF_EXTEND_SIGN(ttf->ymin, 16);
+    ttf->xmax = MT_TTF_EXTEND_SIGN(ttf->xmax, 16);
+    ttf->ymax = MT_TTF_EXTEND_SIGN(ttf->ymax, 16);
+
+#if MT_DEBUG
+    printf("mibitype: Max glyph sizes: xmin: %d, ymin: %d, xmax: %d, "
+           "ymax: %d\n", ttf->xmin, ttf->ymin, ttf->xmax, ttf->ymax);
+#endif
+
+    MT_READER_SKIP(font->reader, 3*2);
     ttf->long_offsets = mt_reader_read_short(font->reader);
 
 #if MT_DEBUG
